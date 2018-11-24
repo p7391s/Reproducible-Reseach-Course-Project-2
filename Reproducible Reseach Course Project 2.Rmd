@@ -7,7 +7,7 @@ output: html_document
 
 ## Introduction
 
-Github repo for the [Reproducible Research Course Project 2]
+Github repo for the [Reproducible Research Course Project 2](https://github.com/p7391s/Reproducible-Reseach-Course-Project-2)
 
 </br>
 
