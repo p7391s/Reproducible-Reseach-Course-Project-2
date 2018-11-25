@@ -7,34 +7,30 @@ output: html_document
 
 ## Introduction
 
-Github repo for the [Reproducible Research Course Project 2](https://github.com/p7391s/Reproducible-Reseach-Course-Project-2)
+Github repo for the [Reproducible Research Course Project 2](https://github.com/p7391s/Reproducible-Reseach-Course-Project-2).
 
 </br>
 
 ## 1. Synopsis
 
+Information on the data: [documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf).
 
+## 2. Data processing
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+### 2.1. Data loading
+
+```{r dataloading}
+library("data.table")
+
+path <- getwd()
+
+fileUrl <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+
+download.file(fileUrl, destfile = paste0(path, 'repdata%2Fdata%2FStormData.csv.bz2'), "curl")
+unzip(zipfile = "repdata%2Fdata%2FStormData.csv.bz2")
+storm_d_f <- read.csv(bzfile("repdata%2Fdata%2FStormData.csv.bz2") , header = TRUE)
+storm_d_t <- as.data.table(storm_d_f)
+
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
-```
-
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
