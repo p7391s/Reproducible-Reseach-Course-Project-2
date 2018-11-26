@@ -13,24 +13,220 @@ Github repo for the [Reproducible Research Course Project 2](https://github.com/
 
 ## 1. Synopsis
 
+The goal of the assignment is to explore the NOAA Storm Database and explore the effects of severe weather events on both population and economy.The database covers the time period between 1950 and November 2011.
+
+The following analysis investigates which types of severe weather events are most harmful on:
+
+1. Health (injuries and fatalities)
+2. Property and crops (economic consequences)
+
+
 Information on the data: [documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf).
 
 ## 2. Data processing
 
 ### 2.1. Data loading
 
-```{r dataloading}
+Download the raw data file and extract the data. The data source is in the form of a comma-separated-value file compressed via the bzip2 algorithm to reduce its size.
+
+```{r dataloading, echo=TRUE, results='hide'}
 library("data.table")
 
-path <- getwd()
+# path <- getwd()
 
-fileUrl <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+# downloading data
+url_data <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
 
-download.file(fileUrl, destfile = paste0(path, 'repdata%2Fdata%2FStormData.csv.bz2'), "curl")
-unzip(zipfile = "repdata%2Fdata%2FStormData.csv.bz2")
-storm_d_f <- read.csv(bzfile("repdata%2Fdata%2FStormData.csv.bz2") , header = TRUE)
-storm_d_t <- as.data.table(storm_d_f)
+file_data <- "StormData.csv.bz2"
+if (!file.exists(file_data)) {
+        download.file(url_data, file_data, mode = "wb")
+}
 
 ```
 
+Reading data
 
+```{r readingdata}
+# reading data
+storm_data <- read.csv(file = file_data, header=TRUE, sep=",")
+```
+
+Dimention data
+
+```{r dimdata}
+# dimention
+dim(storm_data)
+```
+
+Summary of storm_data
+
+```{r}
+# summare of storm_data
+summary(storm_data)
+```
+
+### 2.2. Examining Column Names
+
+```{r}
+# examining column names
+colnames(storm_data)
+```
+
+### 2.3. Subsetting by date
+
+According to NOAA, the data recording start from Jan. 1950. At that time, they recorded only one event type - tornado. They added more events gradually, and only from Jan 1996 they started recording all events type. Since our objective is comparing the effects of different weather events, we need only to include events that started not earlier than Jan 1996.
+
+```{r, echo=TRUE, results='hide'}
+# create subsetting by date
+main_data <- storm_data
+
+main_data$BGN_DATE <- strptime(storm_data$BGN_DATE, "%m/%d/%Y %H:%M:%S")
+main_data <- subset(main_data, BGN_DATE > "1995-12-31")
+```
+
+### 2.4. We define the variables we are interested in
+
+Based on the above mentioned documentation and preliminary exploration of raw data with ?str?, ?names?, ?table?, ?dim?, ?head?, ?range? and other similar functions we can conclude that there are 7 variables we are interested in regarding the two questions.
+
+Namely: EVTYPE, FATALITIES, INJURIES, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP.
+
+Therefore, we can limit our data to these variables.
+
+```{r requiredvariables, echo=TRUE, results='hide'}
+# select variables
+main_data <- subset(main_data, select = c(EVTYPE, FATALITIES, INJURIES, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP))
+```
+
+#### Contents of data now are as follows:
+  
+EVTYPE - type of event  
+FATALITIES - number of fatalities  
+INJURIES - number of injuries  
+PROPDMG - the size of property damage  
+PROPDMGEXP - the exponent values for 'PROPDMG' (property damage)  
+CROPDMG - the size of crop damage  
+CROPDMGEXP - the exponent values for 'CROPDMG' (crop damage)
+
+### 2.5. Limit database size
+
+```{r, echo=TRUE, results='hide'}
+# cleaning event types names
+main_data$EVTYPE <- toupper(main_data$EVTYPE)
+
+# eliminating zero data
+main_data <- main_data[main_data$FATALITIES != 0 |
+	main_data$INJURIES != 0 |
+	main_data$PROPDMG != 0|
+	main_data$CROPDMG != 0, ]
+```
+
+#### Now we have 186 unique event types and it seems like something to work with
+
+```{r}
+# unique event types
+unique(main_data$EVTYPE)
+```
+
+## 3. Population health data processing
+
+We aggregate fatalities and injuries numbers in order to identify TOP-10 events contributing the total people loss:
+
+```{r, echo = TRUE, results='asis'}
+# total people loss
+health_data <- aggregate(cbind(FATALITIES, INJURIES) ~ EVTYPE, data = main_data, FUN=sum)
+health_data$PEOPLE_LOSS <- health_data$FATALITIES + health_data$INJURIES
+health_data <- health_data[order(health_data$PEOPLE_LOSS, decreasing = TRUE), ]
+Top10_events_people <- health_data[1:10,]
+knitr::kable(Top10_events_people, format = "markdown")
+```
+
+## 4. Economic consequences data processing
+
+### 4.1. The number/letter transformations
+
+The number/letter in the exponent value columns (PROPDMGEXP and CROPDMGEXP) represents the power of ten (10^The number). It means that the total size of damage is the product of PROPDMG and CROPDMG and figure 10 in the power corresponding to exponent value.
+
+### 4.2. Exponent values are
+
+- numbers from one to ten  
+- letters  (B or b = Billion, M or m = Million, K or k = Thousand, H or h = Hundred)  
+- and symbols "-", "+" and "?" which refers to less than, greater than and low certainty. We have the option to ignore these three symbols altogether.
+
+We transform letters and symbols to numbers:
+
+```{r, echo=TRUE, results = 'hide'}
+# transform letters to numbers
+
+main_data$PROPDMGEXP <- gsub("[Hh]", "2", main_data$PROPDMGEXP)
+main_data$PROPDMGEXP <- gsub("[Kk]", "3", main_data$PROPDMGEXP)
+main_data$PROPDMGEXP <- gsub("[Mm]", "6", main_data$PROPDMGEXP)
+main_data$PROPDMGEXP <- gsub("[Bb]", "9", main_data$PROPDMGEXP)
+main_data$PROPDMGEXP <- gsub("\\+", "1", main_data$PROPDMGEXP)
+main_data$PROPDMGEXP <- gsub("\\?|\\-|\\ ", "0",  main_data$PROPDMGEXP)
+main_data$PROPDMGEXP <- as.numeric(main_data$PROPDMGEXP)
+
+main_data$CROPDMGEXP <- gsub("[Hh]", "2", main_data$CROPDMGEXP)
+main_data$CROPDMGEXP <- gsub("[Kk]", "3", main_data$CROPDMGEXP)
+main_data$CROPDMGEXP <- gsub("[Mm]", "6", main_data$CROPDMGEXP)
+main_data$CROPDMGEXP <- gsub("[Bb]", "9", main_data$CROPDMGEXP)
+main_data$CROPDMGEXP <- gsub("\\+", "1", main_data$CROPDMGEXP)
+main_data$CROPDMGEXP <- gsub("\\-|\\?|\\ ", "0", main_data$CROPDMGEXP)
+main_data$CROPDMGEXP <- as.numeric(main_data$CROPDMGEXP)
+
+main_data$PROPDMGEXP[is.na(main_data$PROPDMGEXP)] <- 0
+main_data$CROPDMGEXP[is.na(main_data$CROPDMGEXP)] <- 0
+```
+
+### 4.3 Create new values of total property damage and total crop damage for analysis (we need ?dplr? package for that)
+
+```{r, echo=TRUE, results = 'hide', message = FALSE, warning = FALSE}
+#creating total damage values
+
+library(dplyr)
+
+main_data <- mutate(main_data, 
+                    PROPDMGTOTAL = PROPDMG * (10 ^ PROPDMGEXP), 
+                    CROPDMGTOTAL = CROPDMG * (10 ^ CROPDMGEXP))
+```
+
+### 4.4. Aggregate property and crop damage numbers in order to identify TOP-10 events contributing the total economic loss
+
+```{r, echo=TRUE, results = 'asis'}
+#analyzing
+economic_data <- aggregate(cbind(PROPDMGTOTAL, CROPDMGTOTAL) ~ EVTYPE, data = main_data, FUN=sum)
+economic_data$ECONOMIC_LOSS <- economic_data$PROPDMGTOTAL + economic_data$CROPDMGTOTAL
+economic_data <- economic_data[order(economic_data$ECONOMIC_LOSS, decreasing = TRUE), ]
+Top10_events_economy <- economic_data[1:10,]
+knitr::kable(Top10_events_economy, format = "markdown")
+```
+
+## 5. Results
+
+### 5.1. Analyzing population health impact on the graph one can conclude that TORNADOS, EXCESSIVE HEAT and FLOOD are the main contributors to deaths and injuries out of all event types of weather events.
+
+```{r, echo=TRUE, results='asis', message = FALSE, warning = FALSE}
+#plotting health loss
+library(ggplot2)
+
+g <- ggplot(data = Top10_events_people, aes(x = reorder(EVTYPE, PEOPLE_LOSS), y = PEOPLE_LOSS))
+g <- g + geom_bar(stat = "identity", colour = "green", fill = "darkgreen")
+g <- g + labs(title = "Total people loss in USA by weather events in 1996-2011")
+g <- g + theme(plot.title = element_text(hjust = 0.5))
+g <- g + labs(y = "Number of fatalities and injuries", x = "Event Type")
+g <- g + coord_flip()
+print(g)
+```
+
+### 5.2. Analyzing economic impact on the graph one can conclude that FLOOD, HURRICANE/TYPHOON and STORM SURGE are the main contributors to severe economic consequences out of all event types of weather events.
+
+```{r, echo=TRUE, results='asis'}
+#plotting economic loss
+
+g <- ggplot(data = Top10_events_economy, aes(x = reorder(EVTYPE, ECONOMIC_LOSS), y = ECONOMIC_LOSS))
+g <- g + geom_bar(stat = "identity", colour = "red", fill = "darkred")
+g <- g + labs(title = "Total economic loss in USA by weather events in 1996-2011")
+g <- g + theme(plot.title = element_text(hjust = 0.5))
+g <- g + labs(y = "Size of property and crop loss", x = "Event Type")
+g <- g + coord_flip()
+print(g)
+```
